@@ -42,3 +42,7 @@ class UserRegisterSerializer(serializers.ModelSerializer, PasswordValidateMixin)
             create_and_send_otp(user)
             return user
         return None
+
+
+class ResendOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()

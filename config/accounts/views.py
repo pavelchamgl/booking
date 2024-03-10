@@ -4,7 +4,12 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from .serializers import UserRegisterSerializer
+from .models import CustomUser
+from .serializers import (
+    UserRegisterSerializer,
+    ResendOTPSerializer,
+)
+from .utils import create_and_send_otp
 
 
 class UserRegisterAPIView(APIView):
@@ -63,4 +68,49 @@ class UserRegisterAPIView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response({'message': 'Пользователь успешно создан.', 'data': serializer.data}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ResendOTPAPIView(APIView):
+    """
+    API для повторной отправки OTP пользователю для верификации почты.
+
+
+    Этот эндпоинт позволяет повторно отправить OTP пользователю,
+    если он не успел ввести OTP для верификации при регистрации.
+    """
+
+    @swagger_auto_schema(
+        request_body=ResendOTPSerializer,
+        responses={
+            200: openapi.Response(
+                description='OK - OTP успешно отправлен пользователю для верификации',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'message': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешной отправке OTP')
+                    }
+                )
+            ),
+            400: openapi.Response(description='Bad Request - неверный формат запроса'),
+            404: openapi.Response(description='Not Found - пользователь с указанным адресом электронной почты не найден')
+        },
+    )
+    def post(self, request):
+        serializer = ResendOTPSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            try:
+                user = CustomUser.objects.get(email=email)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'message': 'Пользователь с указанным адресом электронной почты не найден.'
+                },
+                    status=status.HTTP_404_NOT_FOUND)
+
+            create_and_send_otp(user)
+            return Response({
+                'message': 'OTP на указанный адрес успешно отправлен пользователю для верификации.'
+            },
+                status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
