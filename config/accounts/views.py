@@ -108,7 +108,7 @@ class ResendOTPAPIView(APIView):
                 },
                     status=status.HTTP_404_NOT_FOUND)
 
-            create_and_send_otp(user)
+            create_and_send_otp(user, "EmailConfirmation")
             return Response({
                 'message': 'OTP на указанный адрес успешно отправлен пользователю для верификации.'
             },

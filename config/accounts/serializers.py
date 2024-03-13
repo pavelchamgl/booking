@@ -39,7 +39,7 @@ class UserRegisterSerializer(serializers.ModelSerializer, PasswordValidateMixin)
         validated_data.pop('confirm_password')
         user = CustomUser.objects.create_user(**validated_data)
         if user:
-            create_and_send_otp(user)
+            create_and_send_otp(user, "EmailConfirmation")
             return user
         return None
 
