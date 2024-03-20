@@ -1,13 +1,15 @@
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from .models import CustomUser
+from .models import CustomUser, OTP
 from .serializers import (
     UserRegisterSerializer,
     ResendOTPSerializer,
+    PasswordResetConfirmSerializer,
 )
 from .utils import create_and_send_otp
 
@@ -114,3 +116,88 @@ class ResendOTPAPIView(APIView):
             },
                 status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PasswordResetRequestAPIView(APIView):
+    """
+    API для запроса сброса пароля.
+
+    Этот эндпоинт позволяет пользователям запросить сброс пароля
+    путем отправки OTP на их зарегистрированный адрес электронной почты.
+    """
+    def post(self, request):
+        """
+        POST-запрос для запроса сброса пароля.
+
+        Пользователи должны предоставить следующую информацию в теле запроса:
+        - email: Адрес электронной почты пользователя. Обязательно.
+
+        Если запрос успешен и OTP отправлен,
+        эндпоинт возвращает ответ со статусом 200 (OK) и сообщением об успешной отправке.
+
+        Если пользователь с указанным адресом электронной почты не найден,
+        эндпоинт возвращает ответ со статусом 404 (Not Found) и сообщением об ошибке.
+        """
+        email = request.data.get('email')
+
+        if not email:
+            return Response({'error': 'Необходимо указать адрес электронной почты'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'Пользователь с указанным адресом электронной почты не найден'}, status=status.HTTP_404_NOT_FOUND)
+
+        create_and_send_otp(user, otp_title="PasswordReset")
+
+        return Response({'message': 'OTP для сброса пароля успешно отправлен'}, status=status.HTTP_200_OK)
+
+
+class PasswordResetConfirmAPIView(APIView):
+    """
+    API для сброса пароля.
+
+    Этот эндпоинт позволяет пользователям сбросить свой пароль
+    путем подтверждения кода подтверждения (OTP) и указания нового пароля.
+    """
+    def post(self, request):
+        """
+        POST-запрос для сброса пароля.
+
+        Пользователи должны предоставить следующую информацию в теле запроса:
+        - email: Адрес электронной почты пользователя. Обязательно.
+        - otp: Код подтверждения для сброса пароля. Обязательно.
+        - password: Новый пароль пользователя. Обязательно.
+        - confirm_password: Подтверждение нового пароля пользователя. Обязательно.
+
+        Если запрос успешен и пароль сброшен,
+        эндпоинт возвращает ответ со статусом 200 (OK) и сообщением об успешном сбросе пароля.
+
+        Если указанный OTP недействителен или не соответствует указанному пользователю,
+        эндпоинт возвращает ответ со статусом 400 (Bad Request) и сообщением об ошибке.
+        """
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data.get('email')
+            otp_value = serializer.validated_data.get('otp')
+            new_password = serializer.validated_data.get('password')
+
+            try:
+                user = CustomUser.objects.get(email=email)
+            except CustomUser.DoesNotExist:
+                return Response({'error': 'User with this email does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+
+            try:
+                otp = OTP.objects.get(user=user, title="PasswordReset", value=otp_value)
+                if otp.expired_date < timezone.now():
+                    return Response({'error': 'OTP has expired or is invalid.'}, status=status.HTTP_400_BAD_REQUEST)
+            except OTP.DoesNotExist:
+                return Response({'error': 'Invalid OTP or does not match the user.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            user.set_password(new_password)
+            user.save()
+
+            return Response({'message': 'Password reset successfully.'}, status=status.HTTP_200_OK)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

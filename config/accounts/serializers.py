@@ -45,4 +45,11 @@ class UserRegisterSerializer(serializers.ModelSerializer, PasswordValidateMixin)
 
 
 class ResendOTPSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    email = serializers.EmailField(required=True)
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer, PasswordValidateMixin):
+    email = serializers.EmailField(required=True)
+    otp = serializers.CharField(required=True)
+    password = serializers.CharField(required=True)
+    confirm_password = serializers.CharField(required=True)
