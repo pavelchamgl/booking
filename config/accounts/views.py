@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CustomUser, OTP
 from .serializers import (
@@ -125,6 +126,9 @@ class EmailConfirmationAPIView(APIView):
 
     Этот эндпоинт позволяет пользователям подтвердить свой email
     путем ввода кода подтверждения (OTP), отправленного на указанный email.
+
+    При успешном подтверждении email, пользователь аутентифицируется,
+    и для него генерируются токены доступа и обновления (JWT).
     """
 
     @swagger_auto_schema(
@@ -135,7 +139,10 @@ class EmailConfirmationAPIView(APIView):
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        'message': openapi.Schema(type=openapi.TYPE_STRING, description='Email успешно подтвержден')
+                        'message': openapi.Schema(type=openapi.TYPE_STRING, description='Email успешно подтвержден'),
+                        'username': openapi.Schema(type=openapi.TYPE_STRING, description='Имя пользователя'),
+                        'refresh': openapi.Schema(type=openapi.TYPE_STRING, description='Токен обновления'),
+                        'access': openapi.Schema(type=openapi.TYPE_STRING, description='Токен доступа'),
                     }
                 )
             ),
@@ -172,9 +179,14 @@ class EmailConfirmationAPIView(APIView):
 
             user.email_confirmed = True
             user.save()
+            refresh = RefreshToken.for_user(user)
 
-            return Response(
-                {'message': 'Email успешно подтвержден'},
+            return Response({
+                'message': 'Email успешно подтвержден',
+                'username': user.username,
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            },
                 status=status.HTTP_200_OK
             )
         else:
