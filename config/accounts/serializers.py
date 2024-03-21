@@ -48,7 +48,12 @@ class ResendOTPSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
 
 
-class PasswordResetConfirmSerializer(serializers.Serializer, PasswordValidateMixin):
+class EmailConfirmationSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    otp = serializers.CharField(required=True)
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     otp = serializers.CharField(required=True)
     password = serializers.CharField(required=True)

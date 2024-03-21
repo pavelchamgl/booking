@@ -14,6 +14,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     phone_number = PhoneNumberField(blank=True, null=True, unique=True)
     payment = models.CharField(max_length=16, null=True, blank=True, unique=True)
+    email_confirmed = models.BooleanField(default=False)
     date_created = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)
     is_staff = models.BooleanField(default=False)

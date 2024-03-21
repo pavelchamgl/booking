@@ -10,6 +10,7 @@ from .serializers import (
     UserRegisterSerializer,
     ResendOTPSerializer,
     PasswordResetConfirmSerializer,
+    EmailConfirmationSerializer,
 )
 from .utils import create_and_send_otp
 
@@ -116,6 +117,68 @@ class ResendOTPAPIView(APIView):
             },
                 status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class EmailConfirmationAPIView(APIView):
+    """
+    API для подтверждения email по коду OTP.
+
+    Этот эндпоинт позволяет пользователям подтвердить свой email
+    путем ввода кода подтверждения (OTP), отправленного на указанный email.
+    """
+
+    @swagger_auto_schema(
+        request_body=EmailConfirmationSerializer,
+        responses={
+            200: openapi.Response(
+                description='OK - Email успешно подтвержден',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'message': openapi.Schema(type=openapi.TYPE_STRING, description='Email успешно подтвержден')
+                    }
+                )
+            ),
+            400: openapi.Response(description='Bad Request - неверный формат запроса'),
+            404: openapi.Response(description='Not Found - пользователь с указанным адресом электронной почты не найден')
+        },
+    )
+    def post(self, request):
+        serializer = EmailConfirmationSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data.get('email')
+            otp_value = serializer.validated_data.get('otp')
+
+            try:
+                user = CustomUser.objects.get(email=email)
+            except CustomUser.DoesNotExist:
+                return Response(
+                    {'error': 'Пользователь с указанным адресом электронной почты не найден'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            try:
+                otp = OTP.objects.get(user=user, title="EmailConfirmation", value=otp_value)
+                if otp.expired_date < timezone.now():
+                    return Response(
+                        {'error': 'Указанный OTP истек или недействителен'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except OTP.DoesNotExist:
+                return Response(
+                    {'error': 'Указанный OTP недействителен или не соответствует указанному email'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            user.email_confirmed = True
+            user.save()
+
+            return Response(
+                {'message': 'Email успешно подтвержден'},
+                status=status.HTTP_200_OK
+            )
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PasswordResetRequestAPIView(APIView):
