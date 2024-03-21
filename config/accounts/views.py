@@ -5,13 +5,14 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import CustomUser, OTP
 from .serializers import (
     UserRegisterSerializer,
     ResendOTPSerializer,
     PasswordResetConfirmSerializer,
-    EmailConfirmationSerializer,
+    EmailConfirmationSerializer, CustomTokenObtainPairSerializer,
 )
 from .utils import create_and_send_otp
 
@@ -141,8 +142,8 @@ class EmailConfirmationAPIView(APIView):
                     properties={
                         'message': openapi.Schema(type=openapi.TYPE_STRING, description='Email успешно подтвержден'),
                         'username': openapi.Schema(type=openapi.TYPE_STRING, description='Имя пользователя'),
-                        'refresh': openapi.Schema(type=openapi.TYPE_STRING, description='Токен обновления'),
-                        'access': openapi.Schema(type=openapi.TYPE_STRING, description='Токен доступа'),
+                        'refresh': openapi.Schema(type=openapi.TYPE_STRING, description='Токен обновления (JWT)'),
+                        'access': openapi.Schema(type=openapi.TYPE_STRING, description='Токен доступа (JWT)'),
                     }
                 )
             ),
@@ -191,6 +192,80 @@ class EmailConfirmationAPIView(APIView):
             )
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    """
+    Аутентификация пользователя.
+
+    Этот эндпоинт предназначен для аутентификации пользователя и получения токенов доступа и обновления (JWT).
+
+    Для аутентификации требуется предоставить правильные учетные данные пользователя:
+        - email: адрес электронной почты пользователя
+        - password: пароль пользователя
+
+    При успешной аутентификации эндпоинт возвращает токены доступа и обновления, а также имя пользователя.
+    """
+    serializer_class = CustomTokenObtainPairSerializer
+
+    @swagger_auto_schema(
+        request_body=CustomTokenObtainPairSerializer,
+        responses={
+            200: openapi.Response(
+                description="OK - успешная аутентификация",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "access": openapi.Schema(type=openapi.TYPE_STRING, description="Токен доступа (JWT)"),
+                        "refresh": openapi.Schema(type=openapi.TYPE_STRING, description="Токен обновления (JWT)"),
+                        "username": openapi.Schema(type=openapi.TYPE_STRING, description="Имя пользователя"),
+                    }
+                )
+            ),
+            400: openapi.Response(description="Bad Request - неверный формат запроса"),
+        }
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+
+
+class CustomLogoutView(APIView):
+    """
+    Разлогинивание пользователя.
+
+    Этот эндпоинт позволяет пользователям разлогиниться, что приводит к добавлению токена обновления в черный список
+    и прекращению действия токена доступа.
+
+    Для разлогинивания необходимо предоставить токен обновления (JWT) пользователя в теле запроса.
+
+    При успешном разлогинивании эндпоинт возвращает сообщение об успешном разлогинивании.
+    """
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'refresh': openapi.Schema(type=openapi.TYPE_STRING, description='Токен обновления (JWT)')
+            }
+        ),
+        responses={
+            200: openapi.Response(
+                description="OK - Пользователь успешно разлогинен",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "message": openapi.Schema(type=openapi.TYPE_STRING, description="Сообщение об успешном разлогинивании")
+                    }
+                )
+            ),
+            400: openapi.Response(description="Bad Request - неверный формат запроса"),
+        }
+    )
+    def post(self, request):
+        token = RefreshToken(request.data.get('refresh'))
+        token.blacklist()
+
+        return Response({"message": "Пользователь успешно разлогинен."})
 
 
 class PasswordResetRequestAPIView(APIView):
