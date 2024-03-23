@@ -53,6 +53,13 @@ class EmailConfirmationSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     otp = serializers.CharField(required=True)
 
+    def validate(self, attrs):
+        otp = attrs['otp']
+        if not otp.isdigit():
+            raise serializers.ValidationError({"error": "OTP is not digit."})
+        data = super().validate(attrs)
+        return data
+
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
@@ -66,3 +73,16 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data.update({'username': self.user.username})
         return data
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = [
+            'username',
+            'full_name',
+            'email',
+            'phone_number',
+            'birthday',
+            'email_confirmed'
+        ]

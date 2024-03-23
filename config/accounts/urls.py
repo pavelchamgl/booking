@@ -8,6 +8,8 @@ from .views import (
     EmailConfirmationAPIView,
     CustomTokenObtainPairView,
     CustomLogoutView,
+    UserProfileAPIView,
+    AccountDeletionAPIView,
 )
 
 urlpatterns = [
@@ -17,5 +19,7 @@ urlpatterns = [
     path('login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('logout/', CustomLogoutView.as_view(), name='logout'),
     path('reset-password/', PasswordResetConfirmAPIView.as_view(), name='reset_password'),
+    path('profile_me/', UserProfileAPIView.as_view(), name='my_profile'),
+    path('deletion_me/', UserProfileAPIView.as_view(), name='deletion_me'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]

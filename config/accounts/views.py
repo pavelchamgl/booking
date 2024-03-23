@@ -13,7 +13,9 @@ from .serializers import (
     UserRegisterSerializer,
     ResendOTPSerializer,
     PasswordResetConfirmSerializer,
-    EmailConfirmationSerializer, CustomTokenObtainPairSerializer,
+    EmailConfirmationSerializer,
+    CustomTokenObtainPairSerializer,
+    UserProfileSerializer,
 )
 from .utils import create_and_send_otp
 
@@ -168,7 +170,7 @@ class EmailConfirmationAPIView(APIView):
 
             try:
                 otp = OTP.objects.get(user=user, title="EmailConfirmation", value=otp_value)
-                if otp.expired_date < timezone.now():
+                if otp.expired_date < timezone.now() and otp_value.isdigit():
                     return Response(
                         {'error': 'Указанный OTP истек или недействителен'},
                         status=status.HTTP_400_BAD_REQUEST
@@ -223,7 +225,9 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                     }
                 )
             ),
-            400: openapi.Response(description="Bad Request - неверный формат запроса"),
+            401: openapi.Response(
+                description="Unauthorized - Не найдена активная учетная запись с указанными учетными данными"
+            ),
         }
     )
     def post(self, request, *args, **kwargs):
@@ -241,6 +245,7 @@ class CustomLogoutView(APIView):
 
     При успешном разлогинивании эндпоинт возвращает сообщение об успешном разлогинивании.
     """
+    permission_classes = (IsAuthenticated,)
 
     @swagger_auto_schema(
         request_body=openapi.Schema(
@@ -251,22 +256,29 @@ class CustomLogoutView(APIView):
         ),
         responses={
             200: openapi.Response(
-                description="OK - Пользователь успешно разлогинен",
+                description="OK - Сообщение об успешном разлогинивании",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        "message": openapi.Schema(type=openapi.TYPE_STRING, description="Сообщение об успешном разлогинивании")
+                        "message": openapi.Schema(type=openapi.TYPE_STRING, description="Пользователь успешно разлогинен.")
                     }
                 )
             ),
-            400: openapi.Response(description="Bad Request - неверный формат запроса"),
+            400: openapi.Response(description="Bad Request - Необходимо предоставить refresh_token."),
         }
     )
     def post(self, request):
-        token = RefreshToken(request.data.get('refresh'))
-        token.blacklist()
-
-        return Response({"message": "Пользователь успешно разлогинен."})
+        refresh_token = request.data.get('refresh_token')
+        if refresh_token:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response({"message": "Пользователь успешно разлогинен."})
+        else:
+            return Response({
+                "error": "Необходимо предоставить refresh_token."
+            },
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class PasswordResetRequestAPIView(APIView):
@@ -366,8 +378,47 @@ class AccountDeletionAPIView(APIView):
     @swagger_auto_schema(
         responses={
             204: openapi.Response(description="No Content - Аккаунт успешно удален."),
+            401: openapi.Response(description="Unauthorized - Пользователь не авторизован"),
         },
     )
     def delete(self, request):
         request.user.delete()
         return Response({'message': 'Аккаунт успешно удален.'}, status=status.HTTP_204_NO_CONTENT)
+
+
+class UserProfileAPIView(APIView):
+    """
+    API для просмотра и обновления профиля пользователя.
+
+    Пользователи могут просматривать и обновлять свой профиль через этот эндпоинт.
+    """
+    permission_classes = (IsAuthenticated,)
+
+    @swagger_auto_schema(
+        responses={
+            200: openapi.Response(
+                description='Успешный ответ - данные профиля пользователя',
+                schema=UserProfileSerializer
+            ),
+            401: openapi.Response(description='Ошибка авторизации - пользователь не аутентифицирован')
+        }
+    )
+    def get(self, request):
+        user = request.user
+        serializer = UserProfileSerializer(user)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        request_body=UserProfileSerializer,
+        responses={
+            200: openapi.Response(description='Успешное обновление - обновленные данные профиля пользователя'),
+            400: openapi.Response(description='Ошибка в запросе - неверный формат данных для обновления')
+        }
+    )
+    def put(self, request):
+        user = request.user
+        serializer = UserProfileSerializer(user, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
