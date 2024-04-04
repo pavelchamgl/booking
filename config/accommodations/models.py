@@ -15,6 +15,7 @@ class Accommodation(models.Model):
     city = models.CharField(max_length=100)
     accommodation_type = models.ForeignKey(AccommodationType, on_delete=models.CASCADE)
     cost = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3)
     adults_capacity = models.IntegerField()
     children_capacity = models.IntegerField()
     breakfast_included = models.BooleanField(default=False)
@@ -22,6 +23,7 @@ class Accommodation(models.Model):
     bed_type = models.CharField(max_length=50)
     wifi_available = models.BooleanField(default=True)
     available = models.BooleanField(default=True)
+    rating = models.DecimalField(max_digits=3, decimal_places=1)
 
     def __str__(self):
         return self.name
