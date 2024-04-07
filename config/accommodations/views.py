@@ -1,6 +1,10 @@
-from rest_framework import generics
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
+from rest_framework import generics, status
 from rest_framework import filters
 from django_filters import rest_framework as django_filters
+from rest_framework.response import Response
+
 from .models import Accommodation
 from .serializers import AccommodationSerializer
 
@@ -66,3 +70,67 @@ class AccommodationSearchAPIView(generics.ListAPIView):
             queryset = queryset.filter(children_capacity__gte=num_children)
 
         return queryset
+
+
+class ToggleFavoriteAccommodationAPIView(generics.UpdateAPIView):
+    """
+    API для добавления/удаления размещения в избранное.
+
+    Этот эндпоинт позволяет пользователям добавлять или удалять размещение в избранное.
+    Пользователи могут использовать этот эндпоинт для управления списком своих избранных размещений.
+
+    Для добавления размещения в избранное, пользователь должен отправить PATCH запрос с
+    идентификатором размещения в качестве части URL.
+
+    При успешном добавлении размещения в избранное, сервер возвращает сообщение об успешном добавлении
+    или удалении размещения в/из избранного со статусом 200 OK.
+
+    Если размещение с указанным идентификатором не найдено, сервер возвращает статус 404 Not Found.
+
+    Ожидаемый запрос:
+        PATCH /accommodations/{id}/toggle_favorite/
+
+    Параметры запроса:
+        id (int): Идентификатор размещения.
+
+    Ответы:
+        200 OK: Успешное добавление или удаление размещения в/из избранного.
+            {
+                "message": "Accommodation added to favorites."
+            }
+        404 Not Found: Размещение с указанным идентификатором не найдено.
+            {
+                "error": "Accommodation not found."
+            }
+    """
+    queryset = Accommodation.objects.all()
+
+    @swagger_auto_schema(
+        responses={
+            200: openapi.Response(
+                description='OK - Размещение успешно добавлено/удалено из избранного',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'message': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение о результате действия'),
+                    }
+                )
+            ),
+            400: openapi.Response(description='Bad Request - неверный формат запроса'),
+            404: openapi.Response(description='Not Found - размещение не найдено')
+        },
+    )
+    def patch(self, request, pk):
+        user = request.user
+
+        try:
+            accommodation = self.get_object()
+        except Accommodation.DoesNotExist:
+            return Response({'error': 'Accommodation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not accommodation.is_favorite.filter(id=user.id).exists():
+            accommodation.is_favorite.add(user)
+            return Response({'message': 'Accommodation added to favorites.'}, status=status.HTTP_200_OK)
+        else:
+            accommodation.is_favorite.remove(user)
+            return Response({'message': 'Accommodation removed from favorites.'}, status=status.HTTP_200_OK)

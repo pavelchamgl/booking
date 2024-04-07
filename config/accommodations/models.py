@@ -1,5 +1,7 @@
 from django.db import models
 
+from accounts.models import CustomUser
+
 
 class AccommodationType(models.Model):
     name = models.CharField(max_length=100)
@@ -24,6 +26,7 @@ class Accommodation(models.Model):
     wifi_available = models.BooleanField(default=True)
     available = models.BooleanField(default=True)
     rating = models.DecimalField(max_digits=3, decimal_places=1)
+    is_favorite = models.ManyToManyField(CustomUser, related_name='favorite_accommodations', blank=True)
 
     def __str__(self):
         return self.name
