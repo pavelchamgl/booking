@@ -3,6 +3,7 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics, status
 from rest_framework import filters
 from django_filters import rest_framework as django_filters
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Accommodation
@@ -134,3 +135,27 @@ class ToggleFavoriteAccommodationAPIView(generics.UpdateAPIView):
         else:
             accommodation.is_favorite.remove(user)
             return Response({'message': 'Accommodation removed from favorites.'}, status=status.HTTP_200_OK)
+
+
+class FavoriteAccommodationListAPIView(generics.ListAPIView):
+    """
+    Этот эндпоинт выводит список избранных отелей пользователя.
+
+    Пользователи могут использовать этот эндпоинт для просмотра списка размещений, которые они добавили в избранное.
+
+    Ожидаемый запрос:
+        GET /favorite_accommodations/
+
+    Ожидаемый ответ:
+        200 OK: Список избранных отелей успешно получен.
+    """
+
+    serializer_class = AccommodationSerializer
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={200: AccommodationSerializer(many=True)}
+    )
+    def get_queryset(self):
+        user = self.request.user
+        return user.favorite_accommodations.all()
