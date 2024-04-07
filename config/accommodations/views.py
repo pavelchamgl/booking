@@ -159,3 +159,57 @@ class FavoriteAccommodationListAPIView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         return user.favorite_accommodations.all()
+
+
+class AccommodationDetailAPIView(generics.RetrieveAPIView):
+    """
+    Этот эндпоинт отображает детальную информацию об отеле.
+
+    Пользователи могут использовать этот эндпоинт для просмотра подробной информации о конкретном размещении.
+
+    Ожидаемый запрос:
+        GET /accommodations/<int:pk>/
+
+    Ожидаемый ответ:
+        200 OK: Возвращает детальную информацию об отеле, включая его изображения и указание на то, добавлен ли отель в избранное пользователем.
+        404 Not Found: Размещение с указанным идентификатором не найдено.
+    """
+
+    queryset = Accommodation.objects.all()
+    serializer_class = AccommodationSerializer
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        responses={
+            200: openapi.Response(
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'name': openapi.Schema(type=openapi.TYPE_STRING, description='Название отеля'),
+                        'rating': openapi.Schema(type=openapi.TYPE_NUMBER, description='Рейтинг отеля'),
+                        'adults_capacity': openapi.Schema(type=openapi.TYPE_INTEGER, description='Вместимость для взрослых'),
+                        'bed_type': openapi.Schema(type=openapi.TYPE_STRING, description='Тип кровати'),
+                        'wifi_available': openapi.Schema(type=openapi.TYPE_BOOLEAN, description='Наличие Wi-Fi'),
+                        'cost': openapi.Schema(type=openapi.TYPE_NUMBER, description='Стоимость размещения'),
+                        'currency': openapi.Schema(type=openapi.TYPE_STRING, description='Валюта'),
+                        'available': openapi.Schema(type=openapi.TYPE_BOOLEAN, description='Доступность размещения'),
+                        'images': openapi.Schema(type=openapi.TYPE_ARRAY, description='Список изображений отеля', items=openapi.Schema(type=openapi.TYPE_STRING)),
+                        'is_favorite': openapi.Schema(type=openapi.TYPE_BOOLEAN, description='Добавлен ли отель в избранное текущим пользователем'),
+                    }
+                )
+            ),
+            404: openapi.Response(description='Размещение с указанным идентификатором не найдено')
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+
+        is_favorite = False
+        if request.user.is_authenticated:
+            is_favorite = instance.is_favorite.filter(id=request.user.id).exists()
+
+        data = serializer.data
+        data['is_favorite'] = is_favorite
+
+        return Response(data, status=status.HTTP_200_OK)

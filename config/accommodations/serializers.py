@@ -30,3 +30,21 @@ class AccommodationSerializer(serializers.ModelSerializer):
         if image_instance:
             return AccommodationImageSerializer(image_instance).data
         return None
+
+
+class AccommodationDetailSerializer(serializers.ModelSerializer):
+    images = AccommodationImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Accommodation
+        fields = [
+            'images',
+            'name',
+            'rating',
+            'adults_capacity',
+            'bed_type',
+            'wifi_available',
+            'cost',
+            'currency',
+            'available',
+        ]
