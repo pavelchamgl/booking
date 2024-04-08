@@ -3,6 +3,7 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics, status
 from rest_framework import filters
 from django_filters import rest_framework as django_filters
+from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -73,7 +74,7 @@ class AccommodationSearchAPIView(generics.ListAPIView):
         return queryset
 
 
-class ToggleFavoriteAccommodationAPIView(generics.UpdateAPIView):
+class ToggleFavoriteAccommodationAPIView(APIView):
     """
     API для добавления/удаления размещения в избранное.
 
@@ -104,7 +105,6 @@ class ToggleFavoriteAccommodationAPIView(generics.UpdateAPIView):
                 "error": "Accommodation not found."
             }
     """
-    queryset = Accommodation.objects.all()
 
     @swagger_auto_schema(
         responses={
@@ -121,11 +121,11 @@ class ToggleFavoriteAccommodationAPIView(generics.UpdateAPIView):
             404: openapi.Response(description='Not Found - размещение не найдено')
         },
     )
-    def patch(self, request, pk):
+    def patch(self, request, id):
         user = request.user
 
         try:
-            accommodation = self.get_object()
+            accommodation = Accommodation.objects.get(id=id)
         except Accommodation.DoesNotExist:
             return Response({'error': 'Accommodation not found.'}, status=status.HTTP_404_NOT_FOUND)
 
