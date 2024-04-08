@@ -53,7 +53,7 @@ class AccommodationSearchAPIView(generics.ListAPIView):
         'cost': ['lte', 'gte'],
         'accommodation_type__name': ['exact'],
         'breakfast_included': ['exact'],
-        'location__city': ['exact'],
+        'city': ['exact'],
     }
 
     def get_queryset(self):
@@ -92,14 +92,14 @@ class ToggleFavoriteAccommodationAPIView(generics.UpdateAPIView):
         PATCH /accommodations/{id}/toggle_favorite/
 
     Параметры запроса:
-        id (int): Идентификатор размещения.
+    - id (int): Идентификатор размещения.
 
     Ответы:
-        200 OK: Успешное добавление или удаление размещения в/из избранного.
+        - 200 OK: Успешное добавление или удаление размещения в/из избранного.
             {
                 "message": "Accommodation added to favorites."
             }
-        404 Not Found: Размещение с указанным идентификатором не найдено.
+        - 404 Not Found: Размещение с указанным идентификатором не найдено.
             {
                 "error": "Accommodation not found."
             }
@@ -147,7 +147,7 @@ class FavoriteAccommodationListAPIView(generics.ListAPIView):
         GET /favorite_accommodations/
 
     Ожидаемый ответ:
-        200 OK: Список избранных отелей успешно получен.
+        - 200 OK: Список избранных отелей успешно получен.
     """
 
     serializer_class = AccommodationSerializer
@@ -171,8 +171,8 @@ class AccommodationDetailAPIView(generics.RetrieveAPIView):
         GET /accommodations/<int:pk>/
 
     Ожидаемый ответ:
-        200 OK: Возвращает детальную информацию об отеле, включая его изображения и указание на то, добавлен ли отель в избранное пользователем.
-        404 Not Found: Размещение с указанным идентификатором не найдено.
+        - 200 OK: Возвращает детальную информацию об отеле, включая его изображения и указание на то, добавлен ли отель в избранное пользователем.
+        - 404 Not Found: Размещение с указанным идентификатором не найдено.
     """
 
     queryset = Accommodation.objects.all()
@@ -182,6 +182,7 @@ class AccommodationDetailAPIView(generics.RetrieveAPIView):
     @swagger_auto_schema(
         responses={
             200: openapi.Response(
+                description="Детальная информация об отеле",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
