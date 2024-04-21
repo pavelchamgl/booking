@@ -80,6 +80,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = [
             'username',
+            'image',
             'full_name',
             'email',
             'phone_number',

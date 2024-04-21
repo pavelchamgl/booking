@@ -1,17 +1,20 @@
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework import generics, status
+from rest_framework import status
 from rest_framework import filters
 from django_filters import rest_framework as django_filters
+from rest_framework.generics import get_object_or_404, ListAPIView, RetrieveAPIView, CreateAPIView
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from cloudinary.uploader import upload
+
 from .models import Accommodation
-from .serializers import AccommodationSerializer
+from .serializers import AccommodationSerializer, AccommodationImageSerializer, AccommodationDetailSerializer
 
 
-class AccommodationSearchAPIView(generics.ListAPIView):
+class AccommodationSearchAPIView(ListAPIView):
     """
     Этот эндпоинт предоставляет возможность выполнить поиск размещений с учетом различных параметров фильтрации.
 
@@ -23,6 +26,7 @@ class AccommodationSearchAPIView(generics.ListAPIView):
     - `check_in_date`: Дата заезда гостей. Формат - YYYY-MM-DD.
     - `num_adults`: Количество взрослых гостей.
     - `num_children`: Количество детей гостей.
+    - `city`: Город, в котором ищется размещение.
     - Дополнительные параметры фильтрации, такие как стоимость, тип размещения, наличие завтрака и т.д.
 
     Ответы:
@@ -63,6 +67,7 @@ class AccommodationSearchAPIView(generics.ListAPIView):
         check_in_date = self.request.query_params.get('check_in_date')
         num_adults = self.request.query_params.get('num_adults')
         num_children = self.request.query_params.get('num_children')
+        city = self.request.query_params.get('city')
 
         if check_in_date:
             queryset = queryset.filter(stay_dates__start_date__lte=check_in_date, stay_dates__end_date__gte=check_in_date)
@@ -70,6 +75,8 @@ class AccommodationSearchAPIView(generics.ListAPIView):
             queryset = queryset.filter(adults_capacity__gte=num_adults)
         if num_children:
             queryset = queryset.filter(children_capacity__gte=num_children)
+        if city:
+            queryset = queryset.filter(city=city)
 
         return queryset
 
@@ -137,7 +144,7 @@ class ToggleFavoriteAccommodationAPIView(APIView):
             return Response({'message': 'Accommodation removed from favorites.'}, status=status.HTTP_200_OK)
 
 
-class FavoriteAccommodationListAPIView(generics.ListAPIView):
+class FavoriteAccommodationListAPIView(ListAPIView):
     """
     Этот эндпоинт выводит список избранных отелей пользователя.
 
@@ -161,7 +168,7 @@ class FavoriteAccommodationListAPIView(generics.ListAPIView):
         return user.favorite_accommodations.all()
 
 
-class AccommodationDetailAPIView(generics.RetrieveAPIView):
+class AccommodationDetailAPIView(RetrieveAPIView):
     """
     Этот эндпоинт отображает детальную информацию об отеле.
 
@@ -176,8 +183,7 @@ class AccommodationDetailAPIView(generics.RetrieveAPIView):
     """
 
     queryset = Accommodation.objects.all()
-    serializer_class = AccommodationSerializer
-    permission_classes = [IsAuthenticated]
+    serializer_class = AccommodationDetailSerializer
 
     @swagger_auto_schema(
         responses={
@@ -214,3 +220,54 @@ class AccommodationDetailAPIView(generics.RetrieveAPIView):
         data['is_favorite'] = is_favorite
 
         return Response(data, status=status.HTTP_200_OK)
+
+
+class AccommodationImagesAddCreateAPIView(CreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = AccommodationImageSerializer
+
+    def create(self, request, *args, **kwargs):
+        accommodation_id = self.kwargs['accommodation_id']
+        request.data['accommodation'] = accommodation_id
+        image = request.FILES.get('image')
+        image_allowed_formats = ['image/png', 'image/jpeg']
+        if image.content_type not in image_allowed_formats:
+            return Response({'message': 'Неверный формат изображения. Допускаются только форматы PNG и JPEG.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        image_response = upload(image, folder="accommodation_images/", resource_type='auto')
+        request.data['image'] = image_response['secure_url']
+        serializer = AccommodationImageSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Изображение успешно добавлено', 'data': serializer.data}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SimilarAccommodationsListAPIView(ListAPIView):
+    """
+    Получить список похожих размещений.
+
+    Параметры:
+    - accommodation_id (int): ID размещения, для которого нужно найти похожие(отели в том же самом городе).
+
+    Ответы:
+    - 200: Список похожих размещений.
+        - image (str): URL изображения размещения.
+        - name (str): Название размещения.
+        - rating (float): Рейтинг размещения.
+        - adults_capacity (int): Вместимость для взрослых.
+        - bed_type (str): Тип кровати.
+        - wifi_available (bool): Наличие Wi-Fi.
+        - cost (float): Стоимость размещения.
+        - currency (str): Валюта стоимости.
+        - available (bool): Доступность размещения.
+    - 404: Если размещение с предоставленным ID не существует.
+    """
+    serializer_class = AccommodationSerializer
+
+    def get_queryset(self):
+        accommodation_id = self.kwargs['accommodation_id']
+        accommodation = get_object_or_404(Accommodation, id=accommodation_id)
+        city_accommodations = Accommodation.objects.filter(city=accommodation.city)
+        return city_accommodations.exclude(id=accommodation_id)
+

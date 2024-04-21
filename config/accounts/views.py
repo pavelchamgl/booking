@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
+from cloudinary.uploader import upload
 
 from .models import CustomUser, OTP
 from .serializers import (
@@ -391,6 +392,15 @@ class UserProfileAPIView(APIView):
     API для просмотра и обновления профиля пользователя.
 
     Пользователи могут просматривать и обновлять свой профиль через этот эндпоинт.
+
+    Поля профиля:
+    - username: Строка до 150 символов.
+    - full_name: Строка до 150 символов, может быть пустым.
+    - email: Строка, представляющая действительный email адрес. Уникальное значение.
+    - image: Изображение формата PNG/JPEG.
+    - phone_number: Строка в международном формате, может быть пустым. Уникальное значение.
+    - birthday: Дата в формате "YYYY-MM-DD", может быть пустым.
+    - email_confirmed: Булево значение. True, если email подтвержден, иначе False.
     """
     permission_classes = (IsAuthenticated,)
 
@@ -415,8 +425,20 @@ class UserProfileAPIView(APIView):
             400: openapi.Response(description='Ошибка в запросе - неверный формат данных для обновления')
         }
     )
-    def put(self, request):
+    def patch(self, request):
         user = request.user
+        image = request.FILES.get('image')
+        if image:
+            image_allowed_formats = ['image/png', 'image/jpeg']
+            if image.content_type not in image_allowed_formats:
+                return Response({'message': 'Неверный формат изображения. Допускаются только форматы PNG и JPEG.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            image_response = upload(image, folder="profiles_images/", resource_type='auto')
+            request.data['image'] = image_response['secure_url']
+        if 'email' not in request.data:
+            request.data['email'] = user.email
+        if 'username' not in request.data:
+            request.data['username'] = user.username
         serializer = UserProfileSerializer(user, data=request.data)
         if serializer.is_valid():
             serializer.save()
