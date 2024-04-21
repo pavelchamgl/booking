@@ -34,7 +34,7 @@ class Accommodation(models.Model):
 
 class AccommodationImage(models.Model):
     accommodation = models.ForeignKey(Accommodation, related_name='images', on_delete=models.CASCADE)
-    image = models.ImageField(upload_to='accommodation_images/')
+    image = models.URLField()
 
 
 class StayDate(models.Model):

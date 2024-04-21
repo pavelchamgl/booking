@@ -12,6 +12,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         null=True
     )
     email = models.EmailField(unique=True)
+    image = models.URLField(blank=True, null=True)
     phone_number = PhoneNumberField(blank=True, null=True, unique=True)
     birthday = models.DateField(blank=True, null=True)
     email_confirmed = models.BooleanField(default=False)

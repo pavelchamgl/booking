@@ -5,7 +5,11 @@ from .models import Accommodation, AccommodationImage
 class AccommodationImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = AccommodationImage
-        fields = ('image',)
+        fields = [
+            'id',
+            'accommodation',
+            'image'
+        ]
 
 
 class AccommodationSerializer(serializers.ModelSerializer):
@@ -14,6 +18,7 @@ class AccommodationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Accommodation
         fields = [
+            'id',
             'image',
             'name',
             'rating',
@@ -25,11 +30,9 @@ class AccommodationSerializer(serializers.ModelSerializer):
             'available',
         ]
 
-    def get_image(self, obj):
-        image_instance = obj.images.filter(id=1).first()
-        if image_instance:
-            return AccommodationImageSerializer(image_instance).data
-        return None
+    def get_image(self, accommodation):
+        images = accommodation.images.order_by('id')
+        return AccommodationImageSerializer(images.first()).data
 
 
 class AccommodationDetailSerializer(serializers.ModelSerializer):
@@ -38,8 +41,10 @@ class AccommodationDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Accommodation
         fields = [
+            'id',
             'images',
             'name',
+            'description',
             'rating',
             'adults_capacity',
             'bed_type',

@@ -1,0 +1,12 @@
+from django.db import models
+
+from accounts.models import CustomUser
+from accommodations.models import Accommodation
+
+
+class Booking(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    accommodation = models.ForeignKey(Accommodation, on_delete=models.CASCADE)
+    arrival_date = models.DateField()
+    departure_date = models.DateField()
+    is_cancelled = models.BooleanField(default=False)
