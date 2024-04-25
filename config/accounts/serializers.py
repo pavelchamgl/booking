@@ -45,7 +45,7 @@ class UserRegisterSerializer(serializers.ModelSerializer, PasswordValidateMixin)
         return None
 
 
-class ResendOTPSerializer(serializers.Serializer):
+class EmailSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
 
 
