@@ -6,13 +6,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from cloudinary.uploader import upload
 
 from .models import CustomUser, OTP
 from .serializers import (
     UserRegisterSerializer,
-    ResendOTPSerializer,
+    EmailSerializer,
     PasswordResetConfirmSerializer,
     EmailConfirmationSerializer,
     CustomTokenObtainPairSerializer,
@@ -25,29 +26,24 @@ class UserRegisterAPIView(APIView):
     """
     API для создания новых пользователей.
 
-    Этот эндпоинт позволяет пользователям зарегистрироваться и создать новые учетные записи.
+    Этот эндпоинт позволяет пользователям регистрироваться и создавать новые учетные записи.
 
-    Пользователи должны предоставить следующую информацию в теле запроса:
-    - username: Имя пользователя нового пользователя. Обязательно.
-    - email: Адрес электронной почты нового пользователя. Обязательно. Должен быть уникальным.
-    - password: Пароль для нового пользователя. Обязательно.
-    - confirm_password: Подтверждение пароля. Обязательно.
+    Параметры запроса:
+    - username (строка): Имя пользователя нового пользователя. Обязательно.
+    - email (строка): Адрес электронной почты нового пользователя. Обязательно. Должен быть уникальным.
+    - password (строка): Пароль для нового пользователя. Обязательно.
+    - confirm_password (строка): Подтверждение пароля. Обязательно.
 
-    Если регистрация прошла успешно, эндпоинт возвращает ответ со статусом 201 (Создано) и следующими данными:
-    - message: Сообщение об успехе, указывающее, что пользователь успешно создан.
-    - data:
-        - username: Имя пользователя созданного пользователя.
-        - email: Адрес электронной почты созданного пользователя.
-
-    Если тело запроса недействительно или неполное, эндпоинт возвращает ответ со статусом 400 (Неверный запрос) и сообщением об ошибке, указывающим на ошибки валидации.
-
-    Пример использования:
-    {
-        "username": "john_doe",
-        "email": "john@example.com",
-        "password": "secretpassword",
-        "confirm_password": "secretpassword"
-    }
+    Ответы:
+        - 201 Created: Пользователь успешно создан.
+            {
+                "message": "Пользователь успешно создан.",
+                "data": {
+                    "username": "Имя пользователя",
+                    "email": "Email пользователя"
+                }
+            }
+        - 400 Bad Request: Неверный запрос, содержит сообщение об ошибках валидации.
     """
 
     @swagger_auto_schema(
@@ -80,17 +76,23 @@ class UserRegisterAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ResendOTPAPIView(APIView):
+class SendOTPForEmailVerificationAPIView(APIView):
     """
-    API для повторной отправки OTP пользователю для верификации почты.
+    API для повторной отправки OTP для верификации по электронной почте.
 
+    Отправляет OTP (одноразовый пароль) на адрес электронной почты пользователя для верификации.
 
-    Этот эндпоинт позволяет повторно отправить OTP пользователю,
-    если он не успел ввести OTP для верификации при регистрации.
+    Параметры:
+        - email (строка): Адрес электронной почты пользователя для отправки OTP. Обязательно.
+
+    Ответы:
+        - 200 OK: OTP успешно отправлен пользователю для верификации.
+        - 400 Bad Request: Неверный формат запроса.
+        - 404 Not Found: Пользователь с указанным адресом электронной почты не найден.
     """
 
     @swagger_auto_schema(
-        request_body=ResendOTPSerializer,
+        request_body=EmailSerializer,
         responses={
             200: openapi.Response(
                 description='OK - OTP успешно отправлен пользователю для верификации',
@@ -106,7 +108,7 @@ class ResendOTPAPIView(APIView):
         },
     )
     def post(self, request):
-        serializer = ResendOTPSerializer(data=request.data)
+        serializer = EmailSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
             try:
@@ -132,8 +134,20 @@ class EmailConfirmationAPIView(APIView):
     Этот эндпоинт позволяет пользователям подтвердить свой email
     путем ввода кода подтверждения (OTP), отправленного на указанный email.
 
-    При успешном подтверждении email, пользователь аутентифицируется,
-    и для него генерируются токены доступа и обновления (JWT).
+    Параметры запроса:
+        - email (строка): Адрес электронной почты пользователя для подтверждения. Обязательно.
+        - otp (строка): Код подтверждения (OTP). Обязательно.
+
+    Ответы:
+        - 200 OK: Email успешно подтвержден. Возвращает данные пользователя и JWT токены доступа и обновления.
+            {
+                "message": "Email успешно подтвержден",
+                "username": "Имя пользователя",
+                "refresh": "Токен обновления (JWT)",
+                "access": "Токен доступа (JWT)"
+            }
+        - 400 Bad Request: Неверный формат запроса или указанный OTP недействителен или истек.
+        - 404 Not Found: Пользователь с указанным адресом электронной почты не найден.
     """
 
     @swagger_auto_schema(
@@ -200,15 +214,20 @@ class EmailConfirmationAPIView(APIView):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
-    Аутентификация пользователя.
+    API для аутентификации пользователей и выдачи токенов доступа и обновления (JWT).
 
-    Этот эндпоинт предназначен для аутентификации пользователя и получения токенов доступа и обновления (JWT).
+    Параметры запроса:
+        - email (строка): Адрес электронной почты пользователя. Обязательно.
+        - password (строка): Пароль пользователя. Обязательно.
 
-    Для аутентификации требуется предоставить правильные учетные данные пользователя:
-        - email: адрес электронной почты пользователя
-        - password: пароль пользователя
-
-    При успешной аутентификации эндпоинт возвращает токены доступа и обновления, а также имя пользователя.
+    Ответы:
+        - 200 OK: Успешная аутентификация. Возвращает токены доступа и обновления, а также имя пользователя.
+            {
+                "access": "Токен доступа (JWT)",
+                "refresh": "Токен обновления (JWT)",
+                "username": "Имя пользователя"
+            }
+        - 401 Unauthorized: Не найдена активная учетная запись с указанными учетными данными.
     """
     serializer_class = CustomTokenObtainPairSerializer
 
@@ -237,14 +256,20 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 class CustomLogoutView(APIView):
     """
-    Разлогинивание пользователя.
+    API для разлогинивания пользователя.
 
     Этот эндпоинт позволяет пользователям разлогиниться, что приводит к добавлению токена обновления в черный список
     и прекращению действия токена доступа.
 
-    Для разлогинивания необходимо предоставить токен обновления (JWT) пользователя в теле запроса.
+    Параметры запроса:
+        - refresh (строка): Токен обновления (JWT). Обязательно.
 
-    При успешном разлогинивании эндпоинт возвращает сообщение об успешном разлогинивании.
+    Ответы:
+        - 200 OK: Сообщение об успешном разлогинивании.
+            {
+                "message": "Пользователь успешно разлогинен."
+            }
+        - 400 Bad Request: Необходимо предоставить refresh_token.
     """
     permission_classes = (IsAuthenticated,)
 
@@ -282,64 +307,96 @@ class CustomLogoutView(APIView):
             )
 
 
-class PasswordResetRequestAPIView(APIView):
+class SendOTPForPasswordResetAPIView(APIView):
     """
-    API для запроса сброса пароля.
+    API для отправки OTP (одноразового пароля) на адрес электронной почты пользователя для сброса пароля.
 
-    Этот эндпоинт позволяет пользователям запросить сброс пароля
-    путем отправки OTP на их зарегистрированный адрес электронной почты.
+    Параметры запроса:
+        - email (строка): Адрес электронной почты пользователя. Обязательно.
+
+    Ответы:
+        - 200 OK: OTP для сброса пароля успешно отправлен.
+        - 400 Bad Request: Неверный формат запроса.
+        - 404 Not Found: Пользователь с указанным адресом электронной почты не найден.
     """
+
+    @swagger_auto_schema(
+        request_body=EmailSerializer,
+        responses={
+            200: openapi.Response(
+                description='OK - OTP для сброса пароля успешно отправлен',
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'message': openapi.Schema(type=openapi.TYPE_STRING, description='Сообщение об успешной отправке OTP для сброса пароля')
+                    }
+                )
+            ),
+            400: openapi.Response(description='Bad Request - неверный формат запроса'),
+            404: openapi.Response(description='Not Found - пользователь с указанным адресом электронной почты не найден')
+        },
+    )
     def post(self, request):
-        """
-        POST-запрос для запроса сброса пароля.
+        serializer = EmailSerializer(data=request.data)
 
-        Пользователи должны предоставить следующую информацию в теле запроса:
-        - email: Адрес электронной почты пользователя. Обязательно.
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            try:
+                user = CustomUser.objects.get(email=email)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'message': 'Пользователь с указанным адресом электронной почты не найден.'
+                },
+                    status=status.HTTP_404_NOT_FOUND)
 
-        Если запрос успешен и OTP отправлен,
-        эндпоинт возвращает ответ со статусом 200 (OK) и сообщением об успешной отправке.
+            create_and_send_otp(user, otp_title="PasswordReset")
+            return Response({'message': 'OTP для сброса пароля успешно отправлен'}, status=status.HTTP_200_OK)
 
-        Если пользователь с указанным адресом электронной почты не найден,
-        эндпоинт возвращает ответ со статусом 404 (Not Found) и сообщением об ошибке.
-        """
-        email = request.data.get('email')
-
-        if not email:
-            return Response({'error': 'Необходимо указать адрес электронной почты'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            user = CustomUser.objects.get(email=email)
-        except CustomUser.DoesNotExist:
-            return Response({'error': 'Пользователь с указанным адресом электронной почты не найден'}, status=status.HTTP_404_NOT_FOUND)
-
-        create_and_send_otp(user, otp_title="PasswordReset")
-
-        return Response({'message': 'OTP для сброса пароля успешно отправлен'}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PasswordResetConfirmAPIView(APIView):
+class PasswordResetConfirmationAPIView(APIView):
     """
-    API для сброса пароля.
+    API для подтверждения сброса пароля.
 
-    Этот эндпоинт позволяет пользователям сбросить свой пароль
-    путем подтверждения кода подтверждения (OTP) и указания нового пароля.
+    Этот эндпоинт предназначен для подтверждения сброса пароля пользователя
+    путем ввода кода подтверждения (OTP), отправленного на адрес электронной почты,
+    и указания нового пароля.
+
+    Параметры запроса:
+        - email (строка): Адрес электронной почты пользователя. Обязательно.
+        - otp (строка): Код подтверждения (OTP). Обязательно.
+        - password (строка): Новый пароль. Обязательно.
+
+    Ответы:
+        - 200 OK: Пароль успешно сброшен.
+            {
+                "message": "Пароль успешно сброшен."
+            }
+        - 400 Bad Request: Неверный формат запроса или указанный OTP истек или недействителен.
+        - 404 Not Found: Пользователь с указанным адресом электронной почты не найден.
+            {
+                "error": "Пользователь с указанным адресом электронной почты не найден."
+            }
     """
+
+    @swagger_auto_schema(
+        request_body=PasswordResetConfirmSerializer,
+        responses={
+            200: openapi.Response(
+                description="OK - Пароль успешно сброшен",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "message": openapi.Schema(type=openapi.TYPE_STRING, description="Пароль успешно сброшен.")
+                    }
+                )
+            ),
+            400: openapi.Response(description="Bad Request - Неверный формат запроса или указанный OTP истек или недействителен."),
+            404: openapi.Response(description="Not Found - Пользователь с указанным адресом электронной почты не найден.")
+        }
+    )
     def post(self, request):
-        """
-        POST-запрос для сброса пароля.
-
-        Пользователи должны предоставить следующую информацию в теле запроса:
-        - email: Адрес электронной почты пользователя. Обязательно.
-        - otp: Код подтверждения для сброса пароля. Обязательно.
-        - password: Новый пароль пользователя. Обязательно.
-        - confirm_password: Подтверждение нового пароля пользователя. Обязательно.
-
-        Если запрос успешен и пароль сброшен,
-        эндпоинт возвращает ответ со статусом 200 (OK) и сообщением об успешном сбросе пароля.
-
-        Если указанный OTP недействителен или не соответствует указанному пользователю,
-        эндпоинт возвращает ответ со статусом 400 (Bad Request) и сообщением об ошибке.
-        """
         serializer = PasswordResetConfirmSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data.get('email')
@@ -369,9 +426,11 @@ class PasswordResetConfirmAPIView(APIView):
 
 class AccountDeletionAPIView(APIView):
     """
-    API для удаления аккаунта пользователя.
+    API для удаления аккаунта пользователя, без подтверждения действия паролем
 
-    Этот эндпоинт позволяет пользователям удалить свой аккаунт без подтверждения действия паролем.
+    Ответы:
+        - 204 No Content: Аккаунт успешно удален.
+        - 401 Unauthorized: Пользователь не авторизован.
     """
 
     permission_classes = (IsAuthenticated,)
@@ -387,11 +446,11 @@ class AccountDeletionAPIView(APIView):
         return Response({'message': 'Аккаунт успешно удален.'}, status=status.HTTP_204_NO_CONTENT)
 
 
-class UserProfileAPIView(APIView):
+class UserProfileGetAPIView(APIView):
     """
-    API для просмотра и обновления профиля пользователя.
+    API для просмотра профиля пользователя.
 
-    Пользователи могут просматривать и обновлять свой профиль через этот эндпоинт.
+    Пользователи могут просматривать свой профиль через этот эндпоинт.
 
     Поля профиля:
     - username: Строка до 150 символов.
@@ -402,15 +461,12 @@ class UserProfileAPIView(APIView):
     - birthday: Дата в формате "YYYY-MM-DD", может быть пустым.
     - email_confirmed: Булево значение. True, если email подтвержден, иначе False.
     """
-    permission_classes = (IsAuthenticated,)
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         responses={
-            200: openapi.Response(
-                description='Успешный ответ - данные профиля пользователя',
-                schema=UserProfileSerializer
-            ),
-            401: openapi.Response(description='Ошибка авторизации - пользователь не аутентифицирован')
+            200: UserProfileSerializer(),
+            401: "Unauthorized - Пользователь не аутентифицирован"
         }
     )
     def get(self, request):
@@ -418,11 +474,30 @@ class UserProfileAPIView(APIView):
         serializer = UserProfileSerializer(user)
         return Response(serializer.data)
 
+
+class UserProfileUpdateAPIView(APIView):
+    """
+    API для обновления профиля пользователя.
+
+    Пользователи обновлять свой профиль через этот эндпоинт.
+
+    Поля профиля:
+    - username: Строка до 150 символов.
+    - full_name: Строка до 150 символов, может быть пустым.
+    - email: Строка, представляющая действительный email адрес. Уникальное значение.
+    - image: Изображение формата PNG/JPEG.
+    - phone_number: Строка в международном формате, может быть пустым. Уникальное значение.
+    - birthday: Дата в формате "YYYY-MM-DD", может быть пустым.
+    - email_confirmed: Булево значение. True, если email подтвержден, иначе False.
+    """
+    permission_classes = [IsAuthenticated]
+
     @swagger_auto_schema(
         request_body=UserProfileSerializer,
         responses={
-            200: openapi.Response(description='Успешное обновление - обновленные данные профиля пользователя'),
-            400: openapi.Response(description='Ошибка в запросе - неверный формат данных для обновления')
+            200: UserProfileSerializer(),
+            400: "Ошибка в запросе - неверный формат данных для обновления",
+            401: "Unauthorized - Пользователь не аутентифицирован"
         }
     )
     def patch(self, request):
@@ -444,3 +519,46 @@ class UserProfileAPIView(APIView):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    """
+    API для обновления токена доступа (JWT).
+
+    Этот эндпоинт позволяет автоматически обновлять токен доступа.
+
+    Ожидаемые ответы:
+        - 200 OK: Токен доступа успешно обновлен.
+            {
+                "access": "новый токен доступа (JWT)"
+            }
+        - 400 Bad Request: Если возникла ошибка при обновлении токена доступа.
+            {
+                "error": "Ошибка при обновлении токена доступа."
+            }
+    """
+
+    @swagger_auto_schema(
+        responses={
+            200: openapi.Response(
+                description="OK - Токен доступа успешно обновлен",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "access": openapi.Schema(type=openapi.TYPE_STRING, description="Новый токен доступа (JWT)")
+                    }
+                )
+            ),
+            400: openapi.Response(description="Bad Request - Ошибка при обновлении токена доступа",
+                                   schema=openapi.Schema(
+                                       type=openapi.TYPE_OBJECT,
+                                       properties={
+                                           "error": openapi.Schema(type=openapi.TYPE_STRING,
+                                                                   description="Ошибка при обновлении токена доступа.")
+                                       }
+                                   )),
+        }
+    )
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+
