@@ -19,7 +19,7 @@ class Accommodation(models.Model):
     cost = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3)
     adults_capacity = models.IntegerField()
-    children_capacity = models.IntegerField()
+    children_capacity = models.IntegerField(blank=True, null=True)
     breakfast_included = models.BooleanField(default=False)
     kitchen_available = models.BooleanField(default=False)
     bed_type = models.CharField(max_length=50)
