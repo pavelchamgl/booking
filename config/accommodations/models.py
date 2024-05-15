@@ -29,7 +29,7 @@ class Accommodation(models.Model):
     is_favorite = models.ManyToManyField(CustomUser, related_name='favorite_accommodations', blank=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.id} - {self.name} - {self.city} - {self.accommodation_type} - {self.available}"
 
 
 class AccommodationImage(models.Model):

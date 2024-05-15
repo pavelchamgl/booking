@@ -28,8 +28,8 @@ class AccommodationSearchAPIView(ListAPIView):
     - check_in_date (str): Дата заезда гостей в формате YYYY-MM-DD.
     - num_adults (int): Количество взрослых гостей.
     - num_children (int): Количество детей гостей.
-    - city (str): Город, в котором ищется размещение.
-    - Дополнительные параметры фильтрации, такие как стоимость (cost), тип размещения (accommodation_type__name), наличие завтрака (breakfast_included) и т.д.
+    - city (str): Город, в котором ищется размещение(Доступные города для поиска: Kegeti, Тамга, Каракол, Чолпон-Ата, Бишкек, Dzhetyoguz, Джалал-Абад).
+    - Дополнительные параметры фильтрации, такие как стоимость (cost), тип размещения (accommodation_type__name), наличие завтрака (breakfast_included) и наличие собственной кухни (kitchen_available).
 
     Ответы:
     - 200 OK: В случае успешного выполнения запроса, возвращается список объектов размещений, удовлетворяющих критериям фильтрации.
@@ -60,6 +60,7 @@ class AccommodationSearchAPIView(ListAPIView):
         'cost': ['lte', 'gte'],
         'accommodation_type__name': ['exact'],
         'breakfast_included': ['exact'],
+        'kitchen_available': ['exact'],
         'city': ['exact'],
     }
 
@@ -111,6 +112,8 @@ class ToggleFavoriteAccommodationAPIView(APIView):
                 "error": "Accommodation not found."
             }
     """
+
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         responses={
@@ -216,7 +219,6 @@ class AccommodationDetailAPIView(RetrieveAPIView):
 
 
 class AccommodationImagesAddCreateAPIView(CreateAPIView):
-    permission_classes = [IsAuthenticated]
     serializer_class = AccommodationImageSerializer
 
     def create(self, request, *args, **kwargs):
