@@ -20,9 +20,9 @@ services:
       context: ././
       dockerfile: Dockerfile
     expose:
-      - 8000
+      - 8018
     ports:
-      - "8000:8000"
+      - "8018:8018"
     volumes:
       - .:/backend
     env_file:
