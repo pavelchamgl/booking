@@ -21,13 +21,13 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
-    path('neoboocking/admin/', admin.site.urls),
-    path('neoboocking/accounts/', include("accounts.urls")),
-    path('neoboocking/accommodations/', include("accommodations.urls")),
-    path('neoboocking/feedbacks/', include("feedbacks.urls")),
-    path('neoboocking/bookings/', include("bookings.urls")),
+    path('neobooking/admin/', admin.site.urls),
+    path('neobooking/accounts/', include("accounts.urls")),
+    path('neobooking/accommodations/', include("accommodations.urls")),
+    path('neobooking/feedbacks/', include("feedbacks.urls")),
+    path('neobooking/bookings/', include("bookings.urls")),
 
-    path('neoboocking/swagger<format>/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
-    path('neoboocking/swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    path('neoboocking/redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+    path('neobooking/swagger<format>/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+    path('neobooking/swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path('neobooking/redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
